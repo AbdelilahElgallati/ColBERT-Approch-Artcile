@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Understanding the ColBERT Model Architecture</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+        /* Custom styles for diagrams */
+        .diagram-container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: linear-gradient(to bottom, #f8fafc, #f1f5f9);
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .diagram-box {
+            border: 2px solid #4B5563;
+            border-radius: 12px;
+            padding: 1rem;
+            text-align: center;
+            background: white;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        .diagram-box:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border-color: #3B82F6;
+    }
+    .arrow {
+            text-align: center;
+            font-size: 1.5rem;
+            color: #3B82F6;
+            margin: 1rem 0;
+            position: relative;
+        }
+        .arrow::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-top: 8px solid #3B82F6;
+        }
+        .bert-layer {
+            border: 1px solid #6B7280;
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin: 0.5rem;
+            background: linear-gradient(135deg, #EFF6FF, #DBEAFE);
+            transition: all 0.3s ease;
+        }
+        .bert-layer:hover {
+            background: linear-gradient(135deg, #DBEAFE, #BFDBFE);
+            transform: scale(1.02);
+        }
+        .process-flow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            margin: 1rem 0;
+            padding: 0.5rem;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 8px;
+        }
+        .process-arrow {
+            color: #3B82F6;
+      font-weight: bold;
+        }
+        .section-title {
+            background: linear-gradient(135deg, #3B82F6, #2563EB);
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .feature-box {
+            background: linear-gradient(135deg, #F0FDF4, #DCFCE7);
+            border: 2px solid #10B981;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            transition: all 0.3s ease;
+        }
+        .feature-box:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .highlight-text {
+            color: #2563EB;
+            font-weight: 600;
+        }
+        .dimension-tag {
+            background: #EFF6FF;
+            color: #3B82F6;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-left: 0.5rem;
+        }
+        .activation-tag {
+            background: #F0FDF4;
+            color: #10B981;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-left: 0.5rem;
+        }
+        
+        /* Enhanced Header Styles */
+        .main-header {
+            background: linear-gradient(135deg, #1E40AF, #3B82F6);
+            padding: 3rem 0;
+            position: relative;
+            overflow: hidden;
+        }
+        .main-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%23ffffff' fill-opacity='0.1' fill-rule='evenodd'/%3E%3C/svg%3E");
+            opacity: 0.5;
+        }
+        .header-content {
+            position: relative;
+            z-index: 1;
+        }
+        .header-title {
+            font-size: 3rem;
+            font-weight: 800;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        .header-subtitle {
+            font-size: 1.25rem;
+            opacity: 0.9;
+            max-width: 800px;
+            margin: 1rem auto;
+        }
+        
+        /* Navigation Styles */
+        .main-nav {
+            background: rgba(17, 24, 39, 0.95);
+            backdrop-filter: blur(8px);
+            padding: 1rem 0;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .nav-link {
+            position: relative;
+            padding: 0.5rem 1rem;
+            transition: all 0.3s ease;
+        }
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            width: 0;
+            height: 2px;
+            background: #3B82F6;
+            transition: all 0.3s ease;
+            transform: translateX(-50%);
+        }
+        .nav-link:hover::after {
+            width: 100%;
+        }
+        
+        /* Section Styles */
+        .section-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        .section-title {
+            position: relative;
+            padding-left: 1rem;
+            margin-bottom: 2rem;
+        }
+        .section-title::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: linear-gradient(to bottom, #3B82F6, #2563EB);
+            border-radius: 2px;
+        }
+        
+        /* Card Styles */
+        .info-card {
+            background: white;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+        }
+        .info-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Timeline Styles */
+        .timeline {
+            position: relative;
+            padding-left: 2rem;
+        }
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #E5E7EB;
+        }
+        .timeline-item {
+            position: relative;
+            padding-bottom: 2rem;
+        }
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -2.5rem;
+            top: 0.5rem;
+            width: 1rem;
+            height: 1rem;
+            border-radius: 50%;
+            background: #3B82F6;
+            border: 2px solid white;
+        }
+        
+        /* Language Switcher Styles */
+        .language-switcher {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            display: flex;
+            gap: 0.5rem;
+            z-index: 100;
+        }
+        .lang-btn {
+            padding: 0.5rem 1rem;
+            border-radius: 9999px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .lang-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        .lang-btn.active {
+            background: white;
+            color: #1E40AF;
+        }
+        
+        /* Language-specific content */
+        [lang="fr"] {
+            display: none;
+        }
+        [lang="en"] {
+            display: block;
+        }
+        body[data-lang="fr"] [lang="fr"] {
+            display: block;
+        }
+        body[data-lang="fr"] [lang="en"] {
+            display: none;
+        }
+
+        /* Add styles for component links */
+        .component-link {
+            color: #3B82F6;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .component-link:hover {
+            color: #2563EB;
+            text-decoration: underline;
+        }
+        .component-link.active {
+            color: #1E40AF;
+            font-weight: 600;
+        }
+        .component-section {
+            scroll-margin-top: 100px;
+        }
+        .quick-nav {
+            position: fixed;
+            right: 2rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            z-index: 40;
+        }
+        .quick-nav-item {
+            display: block;
+            padding: 0.5rem 1rem;
+            margin: 0.25rem 0;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+        .quick-nav-item:hover {
+            background: #F3F4F6;
+        }
+        .quick-nav-item.active {
+            background: #EFF6FF;
+            color: #3B82F6;
+    }
+
+    /* Navigation Button Styles */
+    .nav-button {
+        display: inline-block;
+        padding: 0.75rem 1.5rem;
+        background-color: #3b82f6;
+        color: white;
+        border-radius: 0.5rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        margin: 1rem;
+    }
+    .nav-button:hover {
+        background-color: #2563eb;
+        transform: translateY(-1px);
+    }
+    .nav-button:active {
+        transform: translateY(0);
+    }
+  </style>
+</head>
+<body class="bg-gray-50 font-sans" data-lang="en">
+
+
+    
+    <!-- Language Switcher -->
+    <div class="language-switcher">
+        <button class="lang-btn active" data-lang="en">EN</button>
+        <button class="lang-btn" data-lang="fr">FR</button>
+    </div>
+
+    <!-- Enhanced Header -->
+    <header class="main-header">
+        <div class="container mx-auto px-4">
+            <div class="header-content text-center">
+                <h1 class="header-title text-white" lang="en">Understanding the ColBERT Model</h1>
+                <h1 class="header-title text-white" lang="fr">Comprendre le Modèle ColBERT</h1>
+                <p class="header-subtitle text-white" lang="en">A Comprehensive Guide to Humor Detection with BERT and Parallel Neural Networks</p>
+                <p class="header-subtitle text-white" lang="fr">Un Guide Complet de la Détection d'Humour avec BERT et les Réseaux Neuronaux Parallèles</p>
+                <a href="/simulation" class="nav-button">Try the Interactive Simulation</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Enhanced Navigation -->
+    <nav class="main-nav">
+        <div class="container mx-auto px-4">
+            <div class="flex justify-center space-x-8">
+                <a href="#overview" class="nav-link text-white" lang="en">Overview</a>
+                <a href="#overview" class="nav-link text-white" lang="fr">Aperçu</a>
+                <a href="#bert-architecture" class="nav-link text-white" lang="en">BERT Architecture</a>
+                <a href="#bert-architecture" class="nav-link text-white" lang="fr">Architecture BERT</a>
+                <a href="#parallel-nn" class="nav-link text-white" lang="en">Parallel NN</a>
+                <a href="#parallel-nn" class="nav-link text-white" lang="fr">RN Parallèle</a>
+                <a href="#colbert-architecture" class="nav-link text-white" lang="en">ColBERT Model</a>
+                <a href="#colbert-architecture" class="nav-link text-white" lang="fr">Modèle ColBERT</a>
+                <a href="#steps" class="nav-link text-white" lang="en">Step-by-Step</a>
+                <a href="#steps" class="nav-link text-white" lang="fr">Étapes</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="section-container">
+        <!-- Overview Section -->
+        <section id="overview" class="mb-16">
+            <div class="section-title">
+                <h2 class="text-3xl font-bold text-gray-900" lang="en">Overview</h2>
+                <h2 class="text-3xl font-bold text-gray-900" lang="fr">Aperçu</h2>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="info-card">
+                    <h3 class="text-xl font-semibold text-gray-900 mb-4" lang="en">What is ColBERT?</h3>
+                    <h3 class="text-xl font-semibold text-gray-900 mb-4" lang="fr">Qu'est-ce que ColBERT ?</h3>
+                    <p class="text-gray-700 leading-relaxed" lang="en">
+                        ColBERT is an advanced neural network model designed specifically for humor detection in short texts. It combines the power of BERT's contextual understanding with parallel neural networks to analyze the relationships between sentences and identify humorous elements.
+                    </p>
+                    <p class="text-gray-700 leading-relaxed" lang="fr">
+                        ColBERT est un modèle de réseau neuronal avancé conçu spécifiquement pour la détection d'humour dans les textes courts. Il combine la puissance de la compréhension contextuelle de BERT avec des réseaux neuronaux parallèles pour analyser les relations entre les phrases et identifier les éléments humoristiques.
+                    </p>
+                </div>
+                <div class="info-card">
+                    <h3 class="text-xl font-semibold text-gray-900 mb-4" lang="en">Key Features</h3>
+                    <h3 class="text-xl font-semibold text-gray-900 mb-4" lang="fr">Caractéristiques Clés</h3>
+                    <ul class="space-y-2 text-gray-700" lang="en">
+                        <li class="flex items-center">
+                            <span class="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                            BERT-based sentence embeddings
+                        </li>
+                        <li class="flex items-center">
+                            <span class="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                            Parallel neural network architecture
+                        </li>
+                        <li class="flex items-center">
+                            <span class="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                            Multi-level feature extraction
+                        </li>
+                        <li class="flex items-center">
+                            <span class="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                            Advanced incongruity detection
+                        </li>
+                    </ul>
+                    <ul class="space-y-2 text-gray-700" lang="fr">
+                        <li class="flex items-center">
+                            <span class="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                            Embeddings de phrases basés sur BERT
+                        </li>
+                        <li class="flex items-center">
+                            <span class="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                            Architecture de réseau neuronal parallèle
+                        </li>
+                        <li class="flex items-center">
+                            <span class="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                            Extraction de caractéristiques multi-niveaux
+                        </li>
+                        <li class="flex items-center">
+                            <span class="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                            Détection avancée d'incongruité
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- BERT Architecture Section -->
+        <section id="bert-architecture" class="mb-12">
+            <h2 class="text-2xl font-semibold mb-4">BERT Architecture</h2>
+            <p class="text-gray-700 mb-4">
+                BERT (Bidirectional Encoder Representations from Transformers) is a language model that understands text by processing it in both directions. In ColBERT, BERT BASE (12 layers, 768 hidden states, 12 attention heads, 110M parameters) is used to generate 768-dimensional embeddings for sentences and whole texts.
+            </p>
+            <div class="diagram-container">
+                <div class="diagram-box">
+                    <p class="font-semibold">Input Tokens</p>
+                    <p class="text-sm">[CLS] Is the doctor at home? [SEP]</p>
+                </div>
+                <div class="arrow">↓</div>
+                <div class="diagram-box">
+                    <p class="font-semibold">Embedding Layer</p>
+                    <p class="text-sm">Token + Position + Segment Embeddings</p>
+                </div>
+                <div class="arrow">↓</div>
+                <div class="diagram-box">
+                    <p class="font-semibold">12 Transformer Layers</p>
+                    <div class="bert-layer">
+                        <p class="text-sm">Layer 1: Self-Attention (12 heads) + Feed-Forward</p>
+                    </div>
+                    <div class="bert-layer">
+                        <p class="text-sm">Layer 2: Self-Attention (12 heads) + Feed-Forward</p>
+                    </div>
+                    <p class="text-sm">...</p>
+                    <div class="bert-layer">
+                        <p class="text-sm">Layer 12: Self-Attention (12 heads) + Feed-Forward</p>
+                    </div>
+                </div>
+                <div class="arrow">↓</div>
+                <div class="diagram-box">
+                    <p class="font-semibold">Output Embedding</p>
+                    <p class="text-sm">[CLS] Vector: [0.12, -0.45, ..., 0.67] (768 dim)</p>
+                </div>
+            </div>
+            <p class="text-gray-700 mt-4">
+                <strong>Explanation:</strong> BERT takes tokenized text (e.g., "[CLS] Is the doctor at home? [SEP]") and converts it into embeddings that combine token, position, and segment information. Each of the 12 transformer layers applies self-attention (to understand word relationships) and a feed-forward network to refine the representation. The final [CLS] token's vector is used as the sentence embedding in ColBERT.
+            </p>
+            <p class="font-semibold mt-2">Example:</p>
+            <p class="text-gray-600">
+                Input: "Is the doctor at home?"<br>
+                Tokens: [CLS], Is, the, doctor, at, home, ?, [SEP]<br>
+                Output: 768-dimensional vector capturing the sentence's contextual meaning.
+            </p>
+        </section>
+
+        <!-- Parallel Neural Network Architecture Section -->
+        <section id="parallel-nn" class="mb-12">
+            <h2 class="text-2xl font-semibold mb-4">Parallel Neural Network Architecture</h2>
+            <p class="text-gray-700 mb-4">
+                The parallel neural network in ColBERT processes BERT embeddings for each sentence and the whole text through separate paths of three hidden layers each. These paths extract mid-level features, which are then concatenated and processed by three final layers to predict humor.
+            </p>
+            <div class="diagram-container">
+                <div class="flex justify-between">
+                    <div class="diagram-box w-1/3">
+                        <p class="font-semibold">Sentence 1 Path</p>
+                        <p class="text-sm">Input: BERT Vector (768 dim)</p>
+                        <p class="text-sm">Layer 1: Dense (256 units, ReLU)</p>
+                        <p class="text-sm">Layer 2: Dense (64 units, ReLU)</p>
+                        <p class="text-sm">Layer 3: Dense (20 units, ReLU)</p>
+                    </div>
+                    <div class="diagram-box w-1/3">
+                        <p class="font-semibold">Sentence 2 Path</p>
+                        <p class="text-sm">Input: BERT Vector (768 dim)</p>
+                        <p class="text-sm">Layer 1: Dense (256 units, ReLU)</p>
+                        <p class="text-sm">Layer 2: Dense (64 units, ReLU)</p>
+                        <p class="text-sm">Layer 3: Dense (20 units, ReLU)</p>
+                    </div>
+                    <div class="diagram-box w-1/3">
+                        <p class="font-semibold">Whole Text Path</p>
+                        <p class="text-sm">Input: BERT Vector (768 dim)</p>
+                        <p class="text-sm">Layer 1: Dense (256 units, ReLU)</p>
+                        <p class="text-sm">Layer 2: Dense (128 units, ReLU)</p>
+                        <p class="text-sm">Layer 3: Dense (60 units, ReLU)</p>
+                    </div>
+                </div>
+                <div class="arrow">↓</div>
+                <div class="diagram-box">
+                    <p class="font-semibold">Concatenation Layer</p>
+                    <p class="text-sm">Combines: [20, 20, 60] → 100 units</p>
+                </div>
+                <div class="arrow">↓</div>
+                <div class="diagram-box">
+                    <p class="font-semibold">Final Layers</p>
+                    <p class="text-sm">Layer 1: Dense (50 units, ReLU)</p>
+                    <p class="text-sm">Layer 2: Dense (10 units, ReLU)</p>
+                    <p class="text-sm">Layer 3: Dense (1 unit, Sigmoid)</p>
+                </div>
+                <div class="arrow">↓</div>
+                <div class="diagram-box">
+                    <p class="font-semibold">Output</p>
+                    <p class="text-sm">Humor Probability (0 to 1)</p>
+                </div>
+            </div>
+            <p class="text-gray-700 mt-4">
+                <strong>Explanation:</strong> Each sentence's BERT embedding (768 dimensions) is processed by three dense layers (256, 64, 20 units) to extract features like context or sentence type. The whole text's embedding is processed similarly but outputs a 60-unit vector to capture word-level relationships. The outputs are concatenated (100 units total) and fed into three final layers (50, 10, 1 units) to predict humor probability.
+            </p>
+            <p class="font-semibold mt-2">Example:</p>
+            <p class="text-gray-600">
+                Sentence 1 Features: [0.5, 0.2, ..., 0.8] (20 units, e.g., question context)<br>
+                Whole Text Features: [0.4, 0.3, ..., 0.9] (60 units, e.g., synonym relationships)<br>
+                Output: 0.95 (Humorous).
+            </p>
+        </section>
+
+        <!-- ColBERT Architecture Diagram -->
+        <section id="colbert-architecture" class="mb-12">
+            <div class="section-title">
+                <h2 class="text-2xl font-semibold" lang="en">ColBERT Model Architecture</h2>
+                <h2 class="text-2xl font-semibold" lang="fr">Architecture du Modèle ColBERT</h2>
+                <p class="text-sm mt-2 opacity-90" lang="en">A sophisticated neural network for humor detection</p>
+                <p class="text-sm mt-2 opacity-90" lang="fr">Un réseau neuronal sophistiqué pour la détection d'humour</p>
+            </div>
+            <div class="diagram-container">
+        <!-- Input Text -->
+                <div id="input-section" class="diagram-box component-section">
+                    <p class="font-semibold text-lg text-blue-600" lang="en">Input Text</p>
+                    <p class="font-semibold text-lg text-blue-600" lang="fr">Texte d'Entrée</p>
+                    <p class="text-sm mt-2">"Is the doctor at home? No, come right in."</p>
+                    <div class="mt-2">
+                        <a href="#bert-section" class="component-link" lang="en">→ BERT Processing</a>
+                        <a href="#bert-section" class="component-link" lang="fr">→ Traitement BERT</a>
+                    </div>
+                </div>
+                <div class="arrow">↓</div>
+
+                <!-- BERT Embedding -->
+                <div id="bert-section" class="flex justify-between gap-4 component-section">
+                    <div class="diagram-box w-1/3">
+                        <p class="font-semibold text-lg text-blue-600" lang="en">BERT Embedding (Sentence 1)</p>
+                        <p class="font-semibold text-lg text-blue-600" lang="fr">Embedding BERT (Phrase 1)</p>
+                        <p class="text-sm mt-2">12 Transformer Layers</p>
+                        <p class="text-sm mt-1">Vector <span class="dimension-tag">768D</span></p>
+                        <div class="mt-2">
+                            <a href="#pnn-section" class="component-link" lang="en">→ Parallel Neural Network</a>
+                            <a href="#pnn-section" class="component-link" lang="fr">→ Réseau Neural Parallèle</a>
+                        </div>
+                    </div>
+                    <div class="diagram-box w-1/3">
+                        <p class="font-semibold text-lg text-blue-600" lang="en">BERT Embedding (Sentence 2)</p>
+                        <p class="font-semibold text-lg text-blue-600" lang="fr">Embedding BERT (Phrase 2)</p>
+                        <p class="text-sm mt-2">12 Transformer Layers</p>
+                        <p class="text-sm mt-1">Vector <span class="dimension-tag">768D</span></p>
+                    </div>
+                    <div class="diagram-box w-1/3">
+                        <p class="font-semibold text-lg text-blue-600" lang="en">BERT Embedding (Whole Text)</p>
+                        <p class="font-semibold text-lg text-blue-600" lang="fr">Embedding BERT (Texte Complet)</p>
+                        <p class="text-sm mt-2">12 Transformer Layers</p>
+                        <p class="text-sm mt-1">Vector <span class="dimension-tag">768D</span></p>
+                    </div>
+                </div>
+                <div class="arrow">↓</div>
+
+                <!-- Parallel Neural Network -->
+                <div id="pnn-section" class="flex justify-between gap-4 component-section">
+                    <div class="diagram-box w-1/3">
+                        <p class="font-semibold text-lg text-green-600" lang="en">Hidden Layers (Sentence 1)</p>
+                        <p class="font-semibold text-lg text-green-600" lang="fr">Couches Cachées (Phrase 1)</p>
+                        <div class="mt-2 space-y-2">
+                            <p class="text-sm">Layer 1: Dense <span class="dimension-tag">256D</span></p>
+                            <p class="text-sm">Layer 2: Dense <span class="dimension-tag">64D</span></p>
+                            <p class="text-sm">Layer 3: Dense <span class="dimension-tag">20D</span></p>
+                            <p class="text-sm"><span class="activation-tag">ReLU</span></p>
+                        </div>
+                        <div class="mt-2">
+                            <a href="#concatenation-section" class="component-link" lang="en">→ Feature Concatenation</a>
+                            <a href="#concatenation-section" class="component-link" lang="fr">→ Concaténation des Caractéristiques</a>
+                        </div>
+                    </div>
+                    <div class="diagram-box w-1/3">
+                        <p class="font-semibold text-lg text-green-600" lang="en">Hidden Layers (Sentence 2)</p>
+                        <p class="font-semibold text-lg text-green-600" lang="fr">Couches Cachées (Phrase 2)</p>
+                        <div class="mt-2 space-y-2">
+                            <p class="text-sm">Layer 1: Dense <span class="dimension-tag">256D</span></p>
+                            <p class="text-sm">Layer 2: Dense <span class="dimension-tag">64D</span></p>
+                            <p class="text-sm">Layer 3: Dense <span class="dimension-tag">20D</span></p>
+                            <p class="text-sm"><span class="activation-tag">ReLU</span></p>
+                        </div>
+                    </div>
+                    <div class="diagram-box w-1/3">
+                        <p class="font-semibold text-lg text-green-600" lang="en">Hidden Layers (Whole Text)</p>
+                        <p class="font-semibold text-lg text-green-600" lang="fr">Couches Cachées (Texte Complet)</p>
+                        <div class="mt-2 space-y-2">
+                            <p class="text-sm">Layer 1: Dense <span class="dimension-tag">256D</span></p>
+                            <p class="text-sm">Layer 2: Dense <span class="dimension-tag">128D</span></p>
+                            <p class="text-sm">Layer 3: Dense <span class="dimension-tag">60D</span></p>
+                            <p class="text-sm"><span class="activation-tag">ReLU</span></p>
+                        </div>
+                    </div>
+                </div>
+                <div class="arrow">↓</div>
+
+        <!-- Concatenation -->
+                <div id="concatenation-section" class="diagram-box component-section">
+                    <p class="font-semibold text-lg text-purple-600" lang="en">Concatenation Layer</p>
+                    <p class="font-semibold text-lg text-purple-600" lang="fr">Couche de Concaténation</p>
+                    <p class="text-sm mt-2" lang="en">Combines all vectors</p>
+                    <p class="text-sm mt-2" lang="fr">Combine tous les vecteurs</p>
+                    <p class="text-sm mt-1">Total: <span class="dimension-tag">100D</span></p>
+                    <div class="mt-2">
+                        <a href="#output-section" class="component-link" lang="en">→ Final Output</a>
+                        <a href="#output-section" class="component-link" lang="fr">→ Sortie Finale</a>
+                    </div>
+                </div>
+                <div class="arrow">↓</div>
+
+        <!-- Output -->
+                <div id="output-section" class="diagram-box component-section">
+                    <p class="font-semibold text-lg text-purple-600" lang="en">Output</p>
+                    <p class="font-semibold text-lg text-purple-600" lang="fr">Sortie</p>
+                    <p class="text-sm mt-2" lang="en">Humor Probability</p>
+                    <p class="text-sm mt-2" lang="fr">Probabilité d'Humour</p>
+                    <div class="mt-2 p-2 bg-purple-50 rounded">
+                        <p class="text-sm">Humorous: <span class="highlight-text">0.95</span></p>
+                        <p class="text-sm">Non-Humorous: <span class="highlight-text">0.05</span></p>
+                    </div>
+                </div>
+    </div>
+        </section>
+
+        <!-- Enhanced Step-by-Step Section -->
+        <section id="steps" class="mb-16">
+            <div class="section-title">
+                <h2 class="text-3xl font-bold text-gray-900" lang="en">Step-by-Step Process</h2>
+                <h2 class="text-3xl font-bold text-gray-900" lang="fr">Processus Étape par Étape</h2>
+            </div>
+            <div class="timeline">
+                <div class="timeline-item">
+                    <div class="info-card">
+                        <h3 class="text-xl font-semibold text-gray-900 mb-4" lang="en">1. Text Input & Preprocessing</h3>
+                        <h3 class="text-xl font-semibold text-gray-900 mb-4" lang="fr">1. Entrée de Texte & Prétraitement</h3>
+                        <p class="text-gray-700 mb-4" lang="en">
+                            The model begins by processing the input text through several preprocessing steps:
+                        </p>
+                        <p class="text-gray-700 mb-4" lang="fr">
+                            Le modèle commence par traiter le texte d'entrée à travers plusieurs étapes de prétraitement :
+                        </p>
+                        <ul class="list-disc pl-6 text-gray-700 space-y-2" lang="en">
+                            <li>Text tokenization and cleaning</li>
+                            <li>Sentence boundary detection</li>
+                            <li>Special token addition ([CLS], [SEP])</li>
+                            <li>Input length normalization</li>
+                        </ul>
+                        <ul class="list-disc pl-6 text-gray-700 space-y-2" lang="fr">
+                            <li>Tokenisation et nettoyage du texte</li>
+                            <li>Détection des limites de phrases</li>
+                            <li>Ajout de tokens spéciaux ([CLS], [SEP])</li>
+                            <li>Normalisation de la longueur d'entrée</li>
+        </ul>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="info-card">
+                        <h3 class="text-xl font-semibold text-gray-900 mb-4">2. BERT Processing</h3>
+                        <p class="text-gray-700 mb-4">
+                            Each sentence and the whole text are processed through BERT:
+                        </p>
+                        <ul class="list-disc pl-6 text-gray-700 space-y-2">
+                            <li>Token embeddings generation</li>
+                            <li>Position embeddings addition</li>
+                            <li>Segment embeddings for sentence separation</li>
+                            <li>12 transformer layers processing</li>
+                            <li>768-dimensional vector output</li>
+        </ul>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="info-card">
+                        <h3 class="text-xl font-semibold text-gray-900 mb-4">3. Parallel Neural Network Processing</h3>
+                        <p class="text-gray-700 mb-4">
+                            Three parallel networks process the BERT outputs:
+                        </p>
+                        <ul class="list-disc pl-6 text-gray-700 space-y-2">
+                            <li>Sentence 1 Network (256→64→20 units)</li>
+                            <li>Sentence 2 Network (256→64→20 units)</li>
+                            <li>Whole Text Network (256→128→60 units)</li>
+                            <li>ReLU activation at each layer</li>
+        </ul>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="info-card">
+                        <h3 class="text-xl font-semibold text-gray-900 mb-4">4. Feature Integration</h3>
+                        <p class="text-gray-700 mb-4">
+                            The parallel network outputs are combined:
+                        </p>
+                        <ul class="list-disc pl-6 text-gray-700 space-y-2">
+                            <li>Concatenation of all feature vectors</li>
+                            <li>Total dimension: 100 units</li>
+                            <li>Feature normalization</li>
+                            <li>Dimensionality reduction</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="info-card">
+                        <h3 class="text-xl font-semibold text-gray-900 mb-4">5. Final Classification</h3>
+                        <p class="text-gray-700 mb-4">
+                            The integrated features are processed through final layers:
+                        </p>
+                        <ul class="list-disc pl-6 text-gray-700 space-y-2">
+                            <li>Dense layer (50 units, ReLU)</li>
+                            <li>Dense layer (10 units, ReLU)</li>
+                            <li>Output layer (1 unit, Sigmoid)</li>
+                            <li>Binary classification (humorous/non-humorous)</li>
+        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Enhanced Footer -->
+    <footer class="bg-gray-900 text-white py-8">
+        <div class="container mx-auto px-4">
+            <div class="text-center">
+                <p class="text-lg mb-2" lang="en">ColBERT Model Architecture Visualization</p>
+                <p class="text-lg mb-2" lang="fr">Visualisation de l'Architecture du Modèle ColBERT</p>
+                <p class="text-sm text-gray-400" lang="en">Based on the research by Issa Annamoradnejad and Gohar Zoghi</p>
+                <p class="text-sm text-gray-400" lang="fr">Basé sur les recherches d'Issa Annamoradnejad et Gohar Zoghi</p>
+    </div>
+  </div>
+    </footer>
+
+    <!-- Language Switcher Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const langButtons = document.querySelectorAll('.lang-btn');
+            const body = document.body;
+
+            langButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const lang = this.dataset.lang;
+                    body.dataset.lang = lang;
+                    
+                    // Update active state of buttons
+                    langButtons.forEach(btn => btn.classList.remove('active'));
+                    this.classList.add('active');
+                });
+            });
+        });
+    </script>
+
+    <!-- Add scroll spy script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Existing language switcher code...
+
+            // Scroll spy for quick navigation
+            const sections = document.querySelectorAll('.component-section');
+            const navItems = document.querySelectorAll('.quick-nav-item');
+
+            function updateActiveSection() {
+                let current = '';
+                sections.forEach(section => {
+                    const sectionTop = section.offsetTop;
+                    const sectionHeight = section.clientHeight;
+                    if (window.scrollY >= (sectionTop - 150)) {
+                        current = section.getAttribute('id');
+                    }
+                });
+
+                navItems.forEach(item => {
+                    item.classList.remove('active');
+                    if (item.getAttribute('href').substring(1) === current) {
+                        item.classList.add('active');
+                    }
+                });
+            }
+
+            window.addEventListener('scroll', updateActiveSection);
+            updateActiveSection();
+
+            // Smooth scroll for anchor links
+            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                anchor.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const target = document.querySelector(this.getAttribute('href'));
+                    if (target) {
+                        target.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start'
+                        });
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
